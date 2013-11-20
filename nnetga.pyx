@@ -5,7 +5,7 @@
 # NOTE: order of slow fonction to be optimize/multithreaded: kdtreesearching , kdtreecreating , linksolving 
 
 cimport cython
-from time import clock
+from time import clock,time
 from cython.parallel import parallel , prange , threadid
 from libc.stdlib cimport malloc , realloc, free , rand , srand, abs
 
@@ -17,6 +17,7 @@ cdef extern from *:
 cdef World *Worlds = <World *>malloc( 1 * cython.sizeof(World) )
 Worlds.NumPops = 0
 Worlds.Pops = NULL
+srand(int(time()))
 
 cpdef info():
     global Worlds
@@ -46,9 +47,9 @@ cpdef info_pop():
             if Worlds.Pops[iPop].Agents.Net != NULL:
                  print "    -neural network: Yes"
                  print "      -Numbers of Inputs:",Worlds.Pops[iPop].Agents.Net.NumInputs
-                 print "      -Numbers of HiddenLayers:",Worlds.Pops[iPop].Agents.Net.NumHiddenLayers
+                 print "      -Numbers of HiddenLayers:",Worlds.Pops[iPop].Agents.Net.NumLayers
                  print "      -Numbers of Neurons per Layers:",Worlds.Pops[iPop].Agents.Net.NeuronsPerLayers
-                 print "      -Numbers of total Neurons:",Worlds.Pops[iPop].Agents.Net.NeuronsPerLayers * Worlds.Pops[iPop].Agents.Net.NumHiddenLayers
+                 print "      -Numbers of total Neurons:",Worlds.Pops[iPop].Agents.Net.NeuronsPerLayers * Worlds.Pops[iPop].Agents.Net.NumLayers + Worlds.Pops[iPop].Agents.Net.NumOutputs
                  print "      -Numbers of Outputs::",Worlds.Pops[iPop].Agents.Net.NumOutputs
             else:
                 print "    -neural network: No"
@@ -58,8 +59,11 @@ cpdef info_pop():
     print ""
     return
     
-cpdef add_pop(numPopAdd = 1,crossover = 0.7, mutation = 0.05):
+cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.05):
     global Worlds
+    
+    cdef int iPop = 0
+    cdef int i = 0
     
     if numPopAdd == 0:
         return False
@@ -69,7 +73,6 @@ cpdef add_pop(numPopAdd = 1,crossover = 0.7, mutation = 0.05):
     else:
         Worlds.Pops = <Pop *>realloc(Worlds.Pops, ( Worlds.NumPops + numPopAdd ) * cython.sizeof(Pop) )
         
-    iPop = 0
     for i in xrange(numPopAdd):
         iPop += i + Worlds.NumPops
         Worlds.Pops[iPop].Index = iPop
@@ -84,8 +87,10 @@ cpdef add_pop(numPopAdd = 1,crossover = 0.7, mutation = 0.05):
     return True  
     
     
-cpdef add_agent(popIndex = 0, numAgents = 1):
+cpdef add_agent(int popIndex = 0, int numAgents = 1):
     global Worlds
+    
+    cdef int iAgent = 0
     
     if popIndex > (Worlds.NumPops - 1):
         print('ERROR: popIndex out of range')
@@ -103,46 +108,89 @@ cpdef add_agent(popIndex = 0, numAgents = 1):
     return True
     
     
-cpdef add_net(popIndex,num_input,num_layers,num_neurons,num_output):
+cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_output):
     global Worlds
+    
+    cdef int iAgent = 0
+    cdef int iLayer = 0
+    cdef int iNeuron = 0
+    cdef int iOutput = 0
+    cdef int iWeight = 0
+    cdef int LastLayerIndex = 0
+    #cdef int increment = 0
+    srand(1)
     
     if popIndex > (Worlds.NumPops - 1):
         print('ERROR: popIndex out of range')
         return False
 
     for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
+        
+        Worlds.Pops[popIndex].Agents[iAgent].Index = iAgent
+        Worlds.Pops[popIndex].Agents[iAgent].NumChromo = (num_layers * (num_neurons + 1)) + (num_output + 1)
         Worlds.Pops[popIndex].Agents[iAgent].Net = <NeuralNet *>malloc( 1 * cython.sizeof(NeuralNet) )
         Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs = num_input
-        Worlds.Pops[popIndex].Agents[iAgent].Net.NumHiddenLayers = num_layers
+        Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers = num_layers + 1
         Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers = num_neurons
         Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs = num_output
-        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers = <NeuronLayer *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NumHiddenLayers * cython.sizeof(NeuronLayer) )
+        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers = <NeuronLayer *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers * cython.sizeof(NeuronLayer) )
         
-        for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumHiddenLayers):
+        for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1):
+        
+            Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Index = iLayer
             Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers
             Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons = <Neuron *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers * cython.sizeof(Neuron) )
             
             for iNeuron in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers):
+                Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index = iNeuron
                 if iLayer == 0:
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs + 1
                 else:
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers + 1
+                
+                Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output = 0
                     
-                Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights = <float *>malloc((Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs + 1) * cython.sizeof(float) )
+                Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights = <float *>malloc((Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs) * cython.sizeof(float) )
+                
+                for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = (float(rand()) / RAND_MAX * 2) - 1
+                    #increment += 1
         
         Worlds.Pops[popIndex].Agents[iAgent].Net.Input = <float *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs * cython.sizeof(float) )
         Worlds.Pops[popIndex].Agents[iAgent].Net.Output = <Neuron *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs * cython.sizeof(Neuron) )
         
-        for iOutput in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs):
-            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers
-            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Weights = <float *>malloc(Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs * cython.sizeof(float) )
+        LastLayerIndex = Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1
+        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons = Worlds.Pops[popIndex].Agents[iAgent].Net.Output
+        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Index = Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1
+        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].NumNeurons = Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs
         
-        #print(RAND_MAX)
-        #print(1)
-        #srand(1)
-        #for i in xrange(100):
-            #print((float(rand()) / RAND_MAX * 2) - 1)
-        #print(Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs)
+        for iOutput in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs):
+            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Index = iOutput
+            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Output = 0
+            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers + 1
+            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Weights = <float *>malloc(Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs * cython.sizeof(float) )
+            
+            for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].NumInputs):
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight] = (float(rand()) / RAND_MAX * 2) - 1
+                    #increment += 1
+                    
+        
+                    
+                    
+    for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
+        print "A:",Worlds.Pops[popIndex].Agents[iAgent].Index,"  NumChromo:",Worlds.Pops[popIndex].Agents[iAgent].NumChromo
+        for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers):
+            print " L",Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Index
+            for iNeuron in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
+                print "  N",Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index
+                for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    print "    ",Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]
+    #print(RAND_MAX)
+    #print(1)
+    #srand(1)
+    #for i in xrange(100):
+        #print((float(rand()) / RAND_MAX * 2) - 1)
+    #print(Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs)
         
     return True
 
@@ -169,7 +217,7 @@ cdef struct Agent:
 cdef struct NeuralNet:
     int Index
     int NumInputs
-    int NumHiddenLayers
+    int NumLayers
     int NeuronsPerLayers
     int NumOutputs
     NeuronLayer *Layers
