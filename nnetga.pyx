@@ -61,7 +61,7 @@ cpdef info_pop():
     return
     
 
-cpdef info_net(int iPop,int iAgent):
+cpdef info_net(int iPop,int iAgent,int level = 0):
     global Worlds
     
     cdef int iLayer = 0
@@ -79,15 +79,18 @@ cpdef info_net(int iPop,int iAgent):
     for iInput in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumInputs):
         pyInput[iInput] = Worlds.Pops[iPop].Agents[iAgent].Net.Input[iInput]
     
-    print "Agent:",Worlds.Pops[iPop].Agents[iAgent].Index,"  NumChromo:",Worlds.Pops[iPop].Agents[iAgent].NumChromo
-    print " Chromo:", pyChromo
-    print " Inputs", pyInput
-    for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
-        print "  Layer:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index
-        for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
-            print "   Neuron:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index
-            for iWeight in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
-                print "    Weights:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]
+    if level == 0:
+        print "Agent:",Worlds.Pops[iPop].Agents[iAgent].Index,"  NumChromo:",Worlds.Pops[iPop].Agents[iAgent].NumChromo
+    elif level == 1:
+        print " Chromo:", pyChromo
+        print " Inputs", pyInput
+    elif level > 2:
+        for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
+            print "  Layer:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index
+            for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
+                print "   Neuron:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index
+                for iWeight in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    print "    Weights:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]
 
 
     
@@ -161,7 +164,10 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
     for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
         iChromo = 0
         Worlds.Pops[popIndex].Agents[iAgent].Index = iAgent
-        Worlds.Pops[popIndex].Agents[iAgent].NumChromo = ((num_input + 1) * num_neurons) + ((num_layers - 1) * ((num_neurons + 1) * num_neurons)) + (num_output * (num_neurons + 1))
+        if num_layers >= 1:
+            Worlds.Pops[popIndex].Agents[iAgent].NumChromo = ((num_input + 1) * num_neurons) + ((num_layers - 1) * ((num_neurons + 1) * num_neurons)) + (num_output * (num_neurons + 1))
+        else:
+            Worlds.Pops[popIndex].Agents[iAgent].NumChromo = num_input + 1
         Worlds.Pops[popIndex].Agents[iAgent].Chromo = <float *>malloc( Worlds.Pops[popIndex].Agents[iAgent].NumChromo * cython.sizeof(float) )
         Worlds.Pops[popIndex].Agents[iAgent].Net = <NeuralNet *>malloc( 1 * cython.sizeof(NeuralNet) )
         Worlds.Pops[popIndex].Agents[iAgent].Net.Index = 0
@@ -198,7 +204,10 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
             Worlds.Pops[popIndex].Agents[iAgent].Net.Input[iInput] = 333
         Worlds.Pops[popIndex].Agents[iAgent].Net.Output = <Neuron *>malloc( Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs * cython.sizeof(Neuron) )
         
-        LastLayerIndex = Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1
+        if Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers >= 2:
+            LastLayerIndex = Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1
+        else:
+            LastLayerIndex = 0
         Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons = Worlds.Pops[popIndex].Agents[iAgent].Net.Output
         Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Index = Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers - 1
         Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].NumNeurons = Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs
@@ -206,7 +215,10 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
         for iOutput in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumOutputs):
             Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Index = iOutput
             Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Output = 0
-            Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers + 1
+            if Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers >= 2:
+                Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NeuronsPerLayers + 1
+            else:
+                Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs = Worlds.Pops[popIndex].Agents[iAgent].Net.NumInputs + 1
             Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Weights = <float *>malloc(Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs * cython.sizeof(float) )
             
             for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].NumInputs):
@@ -245,24 +257,24 @@ cpdef update(Data):
     
     for iPop in xrange(Worlds.NumPops):
         for iAgent in xrange(Worlds.Pops[iPop].NumAgents):
-            print "Agent loop", iAgent
+            #print "Agent loop", iAgent
             for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
-                print "Layer loop", iLayer
+                #print "Layer loop", iLayer
                 for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
-                    print "Neuron loop", iNeuron
+                    #print "Neuron loop", iNeuron
                     sum = 0
                     for iWeight in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs - 1):
-                        print "Weight loop", iWeight
+                        #print "Weight loop", iWeight
                         if iLayer == 0:
-                            print "(1)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]
+                            #print "(1)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]
                             sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight] )
                         else:
-                            print "(2)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
+                            #print "(2)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
                             sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
                             
                     sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight + 1] * Bias)
                     Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output = sigmoid(sum)
-                    print"sum neuron",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,":",sum," sigmoid:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output
+                    #print"sum neuron",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,":",sum," sigmoid:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output
     
     
     
@@ -307,8 +319,8 @@ cpdef insert_chromo(popIndex,Data):
 
 cdef float sigmoid(float input):
     #print "sigmoid function"
-    #return 1 / (1 + ( 2.7186**(-input/1.0)))
-    return tanh(input)
+    return 1 / (1 + ( 2.7186**(-input/1.0)))
+    #return tanh(input)
     
     
 cdef struct World:
