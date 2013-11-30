@@ -96,7 +96,7 @@ cpdef info_net(int iPop,int iAgent,int level = 0):
 
 
     
-cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.05,mutatemax = 0.3):
+cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.1,mutatemax = 0.3):
     global Worlds
     
     cdef int iPop = 0
