@@ -44,6 +44,7 @@ cpdef info_pop():
         print "    -number of generation:",Worlds.Pops[iPop].Generation
         print "    -crossover rate:",Worlds.Pops[iPop].CrossRate
         print "    -mutation rate:",Worlds.Pops[iPop].MutateRate
+        print "    -mutation max range:",Worlds.Pops[iPop].MutateMax
         if Worlds.Pops[iPop].NumAgents > 0:
             if Worlds.Pops[iPop].Agents.Net != NULL:
                  print "    -neural network: Yes"
@@ -71,7 +72,8 @@ cpdef info_net(int iPop,int iAgent,int level = 0):
     cdef int iInput = 0
     #cdef int increment = 0
     
-    srand(1)
+    #print "level:",level
+    
     pyChromo = [0] * Worlds.Pops[iPop].Agents[iAgent].NumChromo
     for iChromo in xrange(Worlds.Pops[iPop].Agents[iAgent].NumChromo):
         pyChromo[iChromo] = Worlds.Pops[iPop].Agents[iAgent].Chromo[iChromo]
@@ -79,12 +81,12 @@ cpdef info_net(int iPop,int iAgent,int level = 0):
     for iInput in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumInputs):
         pyInput[iInput] = Worlds.Pops[iPop].Agents[iAgent].Net.Input[iInput]
     
-    if level == 0:
+    if level >= 0:
         print "Agent:",Worlds.Pops[iPop].Agents[iAgent].Index,"  NumChromo:",Worlds.Pops[iPop].Agents[iAgent].NumChromo
-    elif level == 1:
+    if level >= 1:
         print " Chromo:", pyChromo
         print " Inputs", pyInput
-    elif level > 2:
+    if level >= 2:
         for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
             print "  Layer:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index
             for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
@@ -94,7 +96,7 @@ cpdef info_net(int iPop,int iAgent,int level = 0):
 
 
     
-cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.05):
+cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.05,mutatemax = 0.3):
     global Worlds
     
     cdef int iPop = 0
@@ -116,6 +118,7 @@ cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.05):
         Worlds.Pops[iPop].Generation = 0
         Worlds.Pops[iPop].CrossRate = crossover
         Worlds.Pops[iPop].MutateRate = mutation
+        Worlds.Pops[iPop].MutateMax = mutatemax
     
     Worlds.NumPops += numPopAdd
            
@@ -139,6 +142,9 @@ cpdef add_agent(int popIndex = 0, int numAgents = 1):
         Worlds.Pops[popIndex].Agents[iAgent].Net = NULL
         Worlds.Pops[popIndex].Agents[iAgent].NumChromo = 0
         Worlds.Pops[popIndex].Agents[iAgent].Chromo = NULL
+        Worlds.Pops[popIndex].Agents[iAgent].Score = 0
+        Worlds.Pops[popIndex].Agents[iAgent].PosLow = 0
+        Worlds.Pops[popIndex].Agents[iAgent].PosHi = 0
 
     return True
     
@@ -155,7 +161,6 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
     cdef int iChromo = 0
     cdef int iInput = 0
     #cdef int increment = 0
-    srand(1)
     
     if popIndex > (Worlds.NumPops - 1):
         print('ERROR: popIndex out of range')
@@ -297,23 +302,120 @@ cpdef insert_chromo(popIndex,Data):
     
     cdef int NumData = len(Data)
     cdef int iData = 0
-    cdef int iPop = 0
     cdef int iAgent = 0
     cdef int iLayer = 0
     cdef int iNeuron = 0
     cdef int iWeight = 0
     cdef int iChromo = 0
 
-    for iPop in xrange(Worlds.NumPops):
-        for iAgent in xrange(Worlds.Pops[iPop].NumAgents):
-            iChromo = 0
-            for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
-                for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
-                    for iWeight in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
-                        Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Data[iChromo]
-                        Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Data[iChromo]
-                        iChromo += 1
+    for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
+        iChromo = 0
+        for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers):
+            for iNeuron in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
+                for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Data[iChromo]
+                    Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Data[iChromo]
+                    iChromo += 1
                         
+    return True
+    
+cpdef next_gen(int PopIndex,Data):
+    global Worlds
+    
+    cdef float TotalScore = 0
+    cdef float PreviousPos = 0
+    cdef int iAgent = 0
+    cdef int iNeuron = 0
+    cdef int iWeight = 0
+    cdef int iChromo = 0
+    cdef int iLovers = 0
+    cdef int Mom = 0
+    cdef int Dad = 0
+    cdef Agent *Baby = <Agent *>malloc((Worlds.Pops[PopIndex].NumAgents + 1) * cython.sizeof(Agent) )
+    cdef float CrossRate = 0
+    cdef float Roulette = 0
+    cdef int CrossPoint = 0
+    cdef int iBaby = 0
+    cdef float MutateRange = 0
+    cdef float MutateChance = 0
+    
+    #srand(int(time()))
+    #print"seed:",int(time())
+    
+    for iBaby in xrange(Worlds.Pops[PopIndex].NumAgents):
+        Baby[iBaby].Chromo = <float *>malloc(Worlds.Pops[PopIndex].Agents[0].NumChromo * cython.sizeof(float) )
+    
+    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
+        Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent]
+        TotalScore += Worlds.Pops[PopIndex].Agents[iAgent].Score + 1
+        
+    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
+        Worlds.Pops[PopIndex].Agents[iAgent].PosLow = PreviousPos
+        Worlds.Pops[PopIndex].Agents[iAgent].PosHi = ((Worlds.Pops[PopIndex].Agents[iAgent].Score + 1) / TotalScore) + PreviousPos
+        PreviousPos = Worlds.Pops[PopIndex].Agents[iAgent].PosHi
+        #print "Agent:",Worlds.Pops[PopIndex].Agents[iAgent].Index," Low:",Worlds.Pops[PopIndex].Agents[iAgent].PosLow," Hi:",Worlds.Pops[PopIndex].Agents[iAgent].PosHi
+    
+    iBaby = 0
+    while iBaby < Worlds.Pops[PopIndex].NumAgents:
+        iLovers = 0
+        while iLovers < 2:
+            Roulette = (float(rand()) / RAND_MAX)
+            #print "Roulette:",Roulette
+            for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
+                if Roulette > Worlds.Pops[PopIndex].Agents[iAgent].PosLow and Roulette <= Worlds.Pops[PopIndex].Agents[iAgent].PosHi:
+                    #print "hit:",Worlds.Pops[PopIndex].Agents[iAgent].Index
+                    if iLovers == 0:
+                        Mom = Worlds.Pops[PopIndex].Agents[iAgent].Index
+                        iLovers += 1
+                    if iLovers == 1 and Worlds.Pops[PopIndex].Agents[iAgent].Index != Mom:
+                        Dad = Worlds.Pops[PopIndex].Agents[iAgent].Index
+                        iLovers += 1
+        #print(Mom,Dad)
+        
+        CrossRate = (float(rand()) / RAND_MAX)
+        CrossPoint = rand() % (Worlds.Pops[PopIndex].Agents[Mom].NumChromo + 1)
+        #print "CrossPoint Rand:",CrossPoint
+        #print "CrossRate Rand:",CrossRate
+        #print "CrossRate:",Worlds.Pops[PopIndex].CrossRate
+        
+        if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
+            #print "Crossing"
+            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                if iChromo < CrossPoint:
+                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                else:
+                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+        else:
+            #print "Stay the same"
+            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+        iBaby += 2 
+    
+    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
+        Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
+        Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
+        Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
+        for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
+            Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iAgent].Chromo[iChromo]
+            MutateChance = (float(rand()) / RAND_MAX)
+            if MutateChance < Worlds.Pops[PopIndex].MutateRate:
+                MutateRange = (float(rand()) / RAND_MAX) * Worlds.Pops[PopIndex].MutateMax
+                #print "Agent:",iAgent,"Mutate at:",MutateRange
+                Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateRange
+        iChromo = 0
+        for iLayer in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.NumLayers):
+            for iNeuron in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
+                for iWeight in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo]
+                    iChromo += 1
+                        
+        free(Baby[iAgent].Chromo)
+    free(Baby)
+    
+        
     return True
     
 
@@ -335,6 +437,7 @@ cdef struct Pop:
     int Generation
     float CrossRate
     float MutateRate
+    float MutateMax
 
     
 cdef struct Agent:
@@ -342,6 +445,9 @@ cdef struct Agent:
     NeuralNet *Net
     int NumChromo
     float *Chromo
+    float Score
+    float PosLow
+    float PosHi
 
 cdef struct NeuralNet:
     int Index
