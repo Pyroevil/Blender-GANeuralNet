@@ -18,7 +18,17 @@ cdef extern from *:
 cdef World *Worlds = <World *>malloc( 1 * cython.sizeof(World) )
 Worlds.NumPops = 0
 Worlds.Pops = NULL
-srand(int(time()))
+seed = int(int(time()) % RAND_MAX)
+#print("seed:",seed)
+srand(seed)
+'''
+cdef int i
+for i in range(64000):
+    if sigmoid(float(i)/1000) == 1.0:
+        print"result:",(float(i)/1000),"=",sigmoid(float(i)/1000)
+        break
+    print (float(i)/1000),":",sigmoid(float(i)/1000)
+'''
 
 cpdef info():
     global Worlds
@@ -151,6 +161,7 @@ cpdef add_agent(int popIndex = 0, int numAgents = 1):
     
 cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_output):
     global Worlds
+    global srand
     
     cdef int iAgent = 0
     cdef int iLayer = 0
@@ -200,7 +211,7 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
                 Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights = <float *>malloc((Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs) * cython.sizeof(float) )
                 
                 for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = (float(rand()) / RAND_MAX * 2) - 1
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = (float(rand()) / RAND_MAX * 72) - 36
                     Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]
                     iChromo += 1
         
@@ -227,7 +238,7 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
             Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Weights = <float *>malloc(Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs * cython.sizeof(float) )
             
             for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].NumInputs):
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight] = (float(rand()) / RAND_MAX * 2) - 1
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight] = (float(rand()) / RAND_MAX * 72) - 36
                     Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight]
                     iChromo += 1
 
@@ -297,7 +308,7 @@ cpdef update(Data):
     return ExportData
 
 
-cpdef insert_chromo(popIndex,Data):
+cpdef insert_chromo(popIndex,agentIndex,Data):
     global Worlds
     
     cdef int NumData = len(Data)
@@ -307,20 +318,30 @@ cpdef insert_chromo(popIndex,Data):
     cdef int iNeuron = 0
     cdef int iWeight = 0
     cdef int iChromo = 0
-
-    for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
+    
+    if agentIndex == -1:
+        for iAgent in xrange(Worlds.Pops[popIndex].NumAgents):
+            iChromo = 0
+            for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers):
+                for iNeuron in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
+                    for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                        Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Data[iChromo]
+                        Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Data[iChromo]
+                        iChromo += 1
+    else:
         iChromo = 0
-        for iLayer in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.NumLayers):
-            for iNeuron in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
-                for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Data[iChromo]
-                    Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Data[iChromo]
+        for iLayer in xrange(Worlds.Pops[popIndex].Agents[agentIndex].Net.NumLayers):
+            for iNeuron in xrange(Worlds.Pops[popIndex].Agents[agentIndex].Net.Layers[iLayer].NumNeurons):
+                for iWeight in xrange(Worlds.Pops[popIndex].Agents[agentIndex].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
+                    Worlds.Pops[popIndex].Agents[agentIndex].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Data[iChromo]
+                    Worlds.Pops[popIndex].Agents[agentIndex].Chromo[iChromo] = Data[iChromo]
                     iChromo += 1
                         
     return True
     
 cpdef next_gen(int PopIndex,Data):
     global Worlds
+    global srand
     
     cdef float TotalScore = 0
     cdef float PreviousPos = 0
@@ -339,8 +360,6 @@ cpdef next_gen(int PopIndex,Data):
     cdef float MutateRange = 0
     cdef float MutateChance = 0
     
-    #srand(int(time()))
-    #print"seed:",int(time())
     
     for iBaby in xrange(Worlds.Pops[PopIndex].NumAgents):
         Baby[iBaby].Chromo = <float *>malloc(Worlds.Pops[PopIndex].Agents[0].NumChromo * cython.sizeof(float) )
@@ -402,9 +421,9 @@ cpdef next_gen(int PopIndex,Data):
             Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iAgent].Chromo[iChromo]
             MutateChance = (float(rand()) / RAND_MAX)
             if MutateChance < Worlds.Pops[PopIndex].MutateRate:
-                MutateRange = (float(rand()) / RAND_MAX) * Worlds.Pops[PopIndex].MutateMax
+                MutateRange = ((float(rand()) / RAND_MAX * 72) - 36) #* Worlds.Pops[PopIndex].MutateMax
                 #print "Agent:",iAgent,"Mutate at:",MutateRange
-                Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateRange
+                Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateRange
         iChromo = 0
         for iLayer in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.NumLayers):
             for iNeuron in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
