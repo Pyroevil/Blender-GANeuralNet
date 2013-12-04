@@ -270,7 +270,6 @@ cpdef update(Data):
                 #print iData,":",Data[iPop][iAgent][iData]
                 Worlds.Pops[iPop].Agents[iAgent].Net.Input[iData] = Data[iPop][iAgent][iData]
     
-    
     for iPop in xrange(Worlds.NumPops):
         for iAgent in xrange(Worlds.Pops[iPop].NumAgents):
             #print "Agent loop", iAgent
@@ -278,7 +277,7 @@ cpdef update(Data):
                 #print "Layer loop", iLayer
                 for iNeuron in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
                     #print "Neuron loop", iNeuron
-                    sum = 0
+                    sum = 0.0
                     for iWeight in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs - 1):
                         #print "Weight loop", iWeight
                         if iLayer == 0:
@@ -339,7 +338,7 @@ cpdef insert_chromo(popIndex,agentIndex,Data):
                         
     return True
     
-cpdef next_gen(int PopIndex,Data):
+cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
     global Worlds
     global srand
     
@@ -350,6 +349,7 @@ cpdef next_gen(int PopIndex,Data):
     cdef int iWeight = 0
     cdef int iChromo = 0
     cdef int iLovers = 0
+    cdef int iElite = 0
     cdef int Mom = 0
     cdef int Dad = 0
     cdef Agent *Baby = <Agent *>malloc((Worlds.Pops[PopIndex].NumAgents + 1) * cython.sizeof(Agent) )
@@ -360,9 +360,10 @@ cpdef next_gen(int PopIndex,Data):
     cdef float MutateRange = 0
     cdef float MutateChance = 0
     
-    
     for iBaby in xrange(Worlds.Pops[PopIndex].NumAgents):
         Baby[iBaby].Chromo = <float *>malloc(Worlds.Pops[PopIndex].Agents[0].NumChromo * cython.sizeof(float) )
+        for iChromo in xrange(Worlds.Pops[PopIndex].Agents[0].NumChromo):
+            Baby[iBaby].Chromo[iChromo] = 666.666
     
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
         Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent]
@@ -373,9 +374,20 @@ cpdef next_gen(int PopIndex,Data):
         Worlds.Pops[PopIndex].Agents[iAgent].PosHi = ((Worlds.Pops[PopIndex].Agents[iAgent].Score + 1) / TotalScore) + PreviousPos
         PreviousPos = Worlds.Pops[PopIndex].Agents[iAgent].PosHi
         #print "Agent:",Worlds.Pops[PopIndex].Agents[iAgent].Index," Low:",Worlds.Pops[PopIndex].Agents[iAgent].PosLow," Hi:",Worlds.Pops[PopIndex].Agents[iAgent].PosHi
+  
+    DataSorted = sorted(Data)
+    ScoreElite = DataSorted[-EliteNum:]
+    for iElite in xrange(EliteNum):
+        #print('Baby index:',(Worlds.Pops[PopIndex].NumAgents - EliteNum) + iElite)
+        #print('Elite index:',int(Data.index(ScoreElite[iElite])))
+        #print("Elite agent:",Worlds.Pops[PopIndex].Agents[int(Data.index(ScoreElite[iElite]))].Index)
+        for iChromo in xrange(Worlds.Pops[PopIndex].Agents[int(Data.index(ScoreElite[iElite]))].NumChromo):
+            Baby[(Worlds.Pops[PopIndex].NumAgents - EliteNum) + iElite].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[int(Data.index(ScoreElite[iElite]))].Chromo[iChromo]
+            #print(Baby[(Worlds.Pops[PopIndex].NumAgents - 1 - EliteNum) + iElite].Chromo[iChromo])
+
     
     iBaby = 0
-    while iBaby < Worlds.Pops[PopIndex].NumAgents:
+    while iBaby < (Worlds.Pops[PopIndex].NumAgents - EliteNum):
         iLovers = 0
         while iLovers < 2:
             Roulette = (float(rand()) / RAND_MAX)
@@ -399,21 +411,31 @@ cpdef next_gen(int PopIndex,Data):
         
         if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
             #print "Crossing"
-            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                if iChromo < CrossPoint:
-                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-                else:
-                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+            if crossOption == 0:
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                    if iChromo < CrossPoint:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                        #Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                    else:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                        #Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+            else:
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                    CrossPoint = rand() % (Worlds.Pops[PopIndex].Agents[Mom].NumChromo + 1)
+                    if iChromo == CrossPoint:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                        #Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                    else:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                        #Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
         else:
             #print "Stay the same"
             for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
                 Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-                Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-        iBaby += 2 
+                #Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+        iBaby += 1 
     
-    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
+    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents - EliteNum):
         Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
         Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
         Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
@@ -433,12 +455,12 @@ cpdef next_gen(int PopIndex,Data):
                         
         free(Baby[iAgent].Chromo)
     free(Baby)
-    
+    Worlds.Pops[PopIndex].Generation += 1
         
-    return True
+    return Worlds.Pops[PopIndex].Generation
     
 
-cdef float sigmoid(float input):
+cdef float sigmoid(float input)nogil:
     #print "sigmoid function"
     return 1 / (1 + ( 2.7186**(-input/1.0)))
     #return tanh(input)
