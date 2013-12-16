@@ -213,7 +213,7 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
                 Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights = <float *>malloc((Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs) * cython.sizeof(float) )
                 
                 for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = (float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = clamped_rand(randMin)
                     Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]
                     iChromo += 1
         
@@ -240,7 +240,7 @@ cpdef add_net(int popIndex,int num_input,int num_layers,int num_neurons,int num_
             Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].Weights = <float *>malloc(Worlds.Pops[popIndex].Agents[iAgent].Net.Output[iOutput].NumInputs * cython.sizeof(float) )
             
             for iWeight in xrange(Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].NumInputs):
-                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight] = (float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin
+                    Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight] = clamped_rand(randMin)
                     Worlds.Pops[popIndex].Agents[iAgent].Chromo[iChromo] = Worlds.Pops[popIndex].Agents[iAgent].Net.Layers[LastLayerIndex].Neurons[iOutput].Weights[iWeight]
                     iChromo += 1
 
@@ -401,7 +401,6 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
 
     
     iBaby = 0
-
     while iBaby < (Worlds.Pops[PopIndex].NumAgents):
         iLovers = 0
         while iLovers < 2:
@@ -412,48 +411,40 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
                     #print "hit:",Worlds.Pops[PopIndex].Agents[iAgent].Index
                     if iLovers == 0:
                         Mom = Worlds.Pops[PopIndex].Agents[iAgent].Index
-                        iLovers += 1
+                        #iLovers += 1
                     if iLovers == 1:# and Worlds.Pops[PopIndex].Agents[iAgent].Index != Mom:
                         Dad = Worlds.Pops[PopIndex].Agents[iAgent].Index
-                        iLovers += 1
+                        #iLovers += 1
+                    iLovers += 1
         
         CrossRate = (float(rand()) / (RAND_MAX + 1.0))
-        CrossPoint = rand() % (Worlds.Pops[PopIndex].Agents[Mom].NumChromo + 1)
+        CrossPoint = rand() % (Worlds.Pops[PopIndex].Agents[Mom].NumChromo)
         #print "CrossPoint Rand:",CrossPoint
         #print "CrossRate Rand:",CrossRate
         #print "CrossRate:",Worlds.Pops[PopIndex].CrossRate
-        
-        if crossOption == 0:
-            if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
-                #print "Crossing"
-                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                    if iChromo < CrossPoint:
-                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-                        Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-                    else:
-                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-                        Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-            else:
-                #print "Stay the same"
-                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-        
-        elif crossOption >= 1:
+        if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
+            #print "Crossing"
             for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                CrossPoint = (float(rand()) / (RAND_MAX + 1.0))
-                if CrossPoint <= Worlds.Pops[PopIndex].CrossRate:
+                if iChromo < CrossPoint:
                     Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
                     Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
                 else:
                     Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
                     Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+        else:
+            #print "Stay the same"
+            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+        
         iBaby += 2
     
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
         Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
         Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
         Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
+        if arraysearch(iAgent,Elite,EliteNum) >= 0:
+            print("Elite exist:",arraysearch(iAgent,Elite,EliteNum))
         if arraysearch(iAgent,Elite,EliteNum) == -1:
             for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
                 Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iAgent].Chromo[iChromo]
@@ -461,7 +452,7 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
                 if MutateChance < Worlds.Pops[PopIndex].MutateRate:
                     #MutateChromo = ((float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin)
                     #Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
-                    MutateChromo = ((float(rand()) / (RAND_MAX + 1.0) * 2) - 1) * Worlds.Pops[PopIndex].MutateMax
+                    MutateChromo = clamped_rand(1.0) * Worlds.Pops[PopIndex].MutateMax
                     Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
                     #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
             iChromo = 0
@@ -477,6 +468,8 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
     Worlds.Pops[PopIndex].Generation += 1
     return Worlds.Pops[PopIndex].Generation
     
+cdef float clamped_rand(range):
+    return ((float(rand()) / (RAND_MAX + 1.0)) * range) - ((float(rand()) / (RAND_MAX + 1.0)) * range)
 
 cdef float sigmoid(float input):
     #print "sigmoid function"
