@@ -1,6 +1,6 @@
 #cython: profile=False
-#cython: boundscheck=True
-#cython: cdivision=False
+#cython: boundscheck=False
+#cython: cdivision=True
 
 # NOTE: order of slow fonction to be optimize/multithreaded: kdtreesearching , kdtreecreating , linksolving 
 
@@ -21,7 +21,7 @@ Worlds.Pops = NULL
 seed = int(int(time()) % (RAND_MAX + 1.0))
 #print("seed:",seed)
 srand(seed)
-cdef float randMax = 2 #72
+cdef float randMax = 2#72
 cdef float randMin = randMax / 2
 '''
 cdef int i
@@ -123,7 +123,8 @@ cpdef add_pop(int numPopAdd = 1,float crossover = 0.7,float mutation = 0.1,mutat
         Worlds.Pops = <Pop *>realloc(Worlds.Pops, ( Worlds.NumPops + numPopAdd ) * cython.sizeof(Pop) )
         
     for i in xrange(numPopAdd):
-        iPop += i + Worlds.NumPops
+        iPop = i + Worlds.NumPops
+        #print(iPop)
         Worlds.Pops[iPop].Index = iPop
         Worlds.Pops[iPop].NumAgents = 0
         Worlds.Pops[iPop].Agents = NULL
@@ -271,9 +272,9 @@ cpdef update(Data):
             for iData in xrange(NumData):
                 #print iData,":",Data[iPop][iAgent][iData]
                 Worlds.Pops[iPop].Agents[iAgent].Net.Input[iData] = Data[iPop][iAgent][iData]
-    
+    #with nogil:
     for iPop in xrange(Worlds.NumPops):
-        for iAgent in xrange(Worlds.Pops[iPop].NumAgents):
+        for iAgent in xrange(Worlds.Pops[iPop].NumAgents): #,schedule='dynamic',chunksize=5):
             #print "Agent loop", iAgent
             for iLayer in xrange(Worlds.Pops[iPop].Agents[iAgent].Net.NumLayers):
                 #print "Layer loop", iLayer
@@ -284,12 +285,12 @@ cpdef update(Data):
                         #print "Weight loop", iWeight
                         if iLayer == 0:
                             #print "(1)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight]
-                            sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight] )
+                            sum = sum + ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Input[iWeight] )
                         else:
                             #print "(2)Layer",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Index,"  Neurons",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Index,"  ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output," x ",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight]," = ",( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
-                            sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
+                            sum = sum + ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] * Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer - 1].Neurons[iWeight].Output )
                             
-                    sum += ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight + 1] * Bias)
+                    sum = sum + ( Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight + 1] * Bias)
                     Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output = sigmoid(sum)
                     #print"sum neuron",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Index,":",sum," sigmoid:",Worlds.Pops[iPop].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Output
     
@@ -422,36 +423,48 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
         #print "CrossPoint Rand:",CrossPoint
         #print "CrossRate Rand:",CrossRate
         #print "CrossRate:",Worlds.Pops[PopIndex].CrossRate
-        if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
-            #print "Crossing"
+        if crossOption == 0:
+            if CrossRate <= Worlds.Pops[PopIndex].CrossRate:
+                #print "Crossing"
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                    if iChromo < CrossPoint:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                        Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                    else:
+                        Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+                        Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+            else:
+                #print "Stay the same"
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
+                    Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
+                    Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
+        elif crossOption >= 1:
             for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                if iChromo < CrossPoint:
+                CrossPoint = (float(rand()) / (RAND_MAX + 1.0))
+                if CrossPoint <= Worlds.Pops[PopIndex].CrossRate:
                     Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
                     Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
                 else:
                     Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
                     Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-        else:
-            #print "Stay the same"
-            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[Mom].NumChromo):
-                Baby[iBaby].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Mom].Chromo[iChromo]
-                Baby[iBaby+1].Chromo[iChromo] = Worlds.Pops[PopIndex].Agents[Dad].Chromo[iChromo]
-        
+           
         iBaby += 2
     
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
         Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
         Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
         Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
-        if arraysearch(iAgent,Elite,EliteNum) >= 0:
-            print("Elite exist:",arraysearch(iAgent,Elite,EliteNum))
+        #if arraysearch(iAgent,Elite,EliteNum) >= 0:
+            #print("Elite exist:",arraysearch(iAgent,Elite,EliteNum))
         if arraysearch(iAgent,Elite,EliteNum) == -1:
             for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
                 Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iAgent].Chromo[iChromo]
                 MutateChance = (float(rand()) / (RAND_MAX + 1.0))
                 if MutateChance < Worlds.Pops[PopIndex].MutateRate:
+                    #if mutateOption == 0:
                     #MutateChromo = ((float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin)
                     #Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
+                    #else:
                     MutateChromo = clamped_rand(1.0) * Worlds.Pops[PopIndex].MutateMax
                     Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
                     #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
@@ -468,10 +481,10 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
     Worlds.Pops[PopIndex].Generation += 1
     return Worlds.Pops[PopIndex].Generation
     
-cdef float clamped_rand(range):
+cdef float clamped_rand(float range)nogil:
     return ((float(rand()) / (RAND_MAX + 1.0)) * range) - ((float(rand()) / (RAND_MAX + 1.0)) * range)
 
-cdef float sigmoid(float input):
+cdef float sigmoid(float input)nogil:
     #print "sigmoid function"
     return 1 / (1 + ( 2.7186**(-input/1.0)))
     #return tanh(input)
