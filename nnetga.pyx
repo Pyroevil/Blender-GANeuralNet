@@ -350,7 +350,7 @@ cpdef get_chromo(int PopIndex,int agentIndex):
     return pyChromo
     
     
-cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
+cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2,int WorstNum = 2):
     global Worlds
     global srand,randMin,randMax
     
@@ -366,6 +366,7 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
     cdef int Dad = 0
     cdef Agent *Baby = <Agent *>malloc((Worlds.Pops[PopIndex].NumAgents + 1) * cython.sizeof(Agent) )
     cdef int *Elite = <int *>malloc( EliteNum * cython.sizeof(int) )
+    cdef int *Worst = <int *>malloc( WorstNum * cython.sizeof(int) )
     cdef float CrossRate = 0
     cdef float Roulette = 0
     cdef float CrossPoint = 0
@@ -378,8 +379,27 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
         for iChromo in xrange(Worlds.Pops[PopIndex].Agents[0].NumChromo):
             Baby[iBaby].Chromo[iChromo] = 666.666
     
+    CopyData = list(Data)
+    DataSorted = []
+    ScoreElite = []
+    DataSorted = sorted(CopyData)
+    ScoreElite = DataSorted[-EliteNum:]
+    ScoreWorst = DataSorted[:WorstNum]
+    #print(ScoreElite)
+    for iElite in xrange(EliteNum):
+        Elite[iElite] = CopyData.index(ScoreElite[iElite])
+        CopyData[Elite[iElite]] += (float(rand()) / (RAND_MAX + 1.0)) * 0.0000001
+        #print("Elite:",Elite[iElite],":",Data[Elite[iElite]])
+    
+    for iWorst in xrange(WorstNum):
+        Worst[iWorst] = CopyData.index(ScoreWorst[iWorst])
+        CopyData[Worst[iWorst]] += (float(rand()) / (RAND_MAX + 1.0)) * 0.0000001
+        Worlds.Pops[PopIndex].Agents[Worst[iWorst]].Score = 0.0
+        #print("Worst:",Worst[iWorst],":",Data[Worst[iWorst]])
+    
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
-        Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent] + 1.0
+        if arraysearch(iAgent,Worst,WorstNum) == -1:
+            Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent] + 1.0
         TotalScore += Worlds.Pops[PopIndex].Agents[iAgent].Score
         
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
@@ -387,19 +407,6 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
         Worlds.Pops[PopIndex].Agents[iAgent].PosHi = (Worlds.Pops[PopIndex].Agents[iAgent].Score / TotalScore) + PreviousPos
         PreviousPos = Worlds.Pops[PopIndex].Agents[iAgent].PosHi
         #print "Agent:",Worlds.Pops[PopIndex].Agents[iAgent].Index," Low:",Worlds.Pops[PopIndex].Agents[iAgent].PosLow," Hi:",Worlds.Pops[PopIndex].Agents[iAgent].PosHi
-    
-    CopyData = list(Data)
-    DataSorted = []
-    ScoreElite = []
-    DataSorted = sorted(CopyData)
-    ScoreElite = DataSorted[-EliteNum:]
-    #print(ScoreElite)
-    for iElite in xrange(EliteNum):
-        Elite[iElite] = CopyData.index(ScoreElite[iElite])
-        CopyData[Elite[iElite]] += (float(rand()) / (RAND_MAX + 1.0)) * 0.0000001
-        #print(Elite[iElite],":",Worlds.Pops[PopIndex].Agents[Elite[iElite]].Score)
-    
-
     
     iBaby = 0
     while iBaby < (Worlds.Pops[PopIndex].NumAgents):
@@ -410,6 +417,8 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2):
             for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
                 if Roulette > Worlds.Pops[PopIndex].Agents[iAgent].PosLow and Roulette <= Worlds.Pops[PopIndex].Agents[iAgent].PosHi:
                     #print "hit:",Worlds.Pops[PopIndex].Agents[iAgent].Index
+                    if arraysearch(Worlds.Pops[PopIndex].Agents[iAgent].Index,Worst,WorstNum) == 1:
+                        print "Hit Worse:",Worlds.Pops[PopIndex].Agents[iAgent].Index
                     if iLovers == 0:
                         Mom = Worlds.Pops[PopIndex].Agents[iAgent].Index
                         #iLovers += 1
