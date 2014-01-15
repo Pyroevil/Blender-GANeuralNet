@@ -21,7 +21,7 @@ Worlds.Pops = NULL
 seed = int(int(time()) % (RAND_MAX + 1.0))
 #print("seed:",seed)
 srand(seed)
-cdef float randMax = 72
+cdef float randMax = 36
 cdef float randMin = randMax / 2
 '''
 cdef int i
@@ -474,7 +474,7 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 0,int 
                     #MutateChromo = ((float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin)
                     #Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
                     #else:
-                    MutateChromo = clamped_rand(randMin) * (Worlds.Pops[PopIndex].MutateMax * randMin)
+                    MutateChromo = clamped_rand(randMin) * Worlds.Pops[PopIndex].MutateMax
                     Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
                     #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
             iChromo = 0
