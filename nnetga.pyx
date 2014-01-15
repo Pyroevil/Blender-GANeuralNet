@@ -21,7 +21,7 @@ Worlds.Pops = NULL
 seed = int(int(time()) % (RAND_MAX + 1.0))
 #print("seed:",seed)
 srand(seed)
-cdef float randMax = 2#72
+cdef float randMax = 72
 cdef float randMin = randMax / 2
 '''
 cdef int i
@@ -350,7 +350,7 @@ cpdef get_chromo(int PopIndex,int agentIndex):
     return pyChromo
     
     
-cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2,int WorstNum = 2):
+cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 0,int WorstNum = 0):
     global Worlds
     global srand,randMin,randMax
     
@@ -399,7 +399,7 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2,int 
     
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
         if arraysearch(iAgent,Worst,WorstNum) == -1:
-            Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent] + 1.0
+            Worlds.Pops[PopIndex].Agents[iAgent].Score = Data[iAgent] + 0.0000001
         TotalScore += Worlds.Pops[PopIndex].Agents[iAgent].Score
         
     for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
@@ -474,7 +474,7 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1,int EliteNum = 2,int 
                     #MutateChromo = ((float(rand()) / (RAND_MAX + 1.0) * randMax) - randMin)
                     #Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
                     #else:
-                    MutateChromo = clamped_rand(1.0) * Worlds.Pops[PopIndex].MutateMax
+                    MutateChromo = clamped_rand(randMin) * (Worlds.Pops[PopIndex].MutateMax * randMin)
                     Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
                     #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
             iChromo = 0
