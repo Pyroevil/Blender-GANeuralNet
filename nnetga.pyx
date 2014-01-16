@@ -21,7 +21,7 @@ Worlds.Pops = NULL
 seed = int(int(time()) % (RAND_MAX + 1.0))
 #print("seed:",seed)
 srand(seed)
-cdef float randMax = 36
+cdef float randMax = 2
 cdef float randMin = randMax / 2
 '''
 cdef int i
