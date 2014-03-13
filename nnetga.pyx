@@ -21,7 +21,7 @@ Worlds.Pops = NULL
 seed = int(int(time()) % (RAND_MAX + 1.0))
 #print("seed:",seed)
 srand(seed)
-cdef float randMax = 4
+cdef float randMax = 16
 cdef float randMin = randMax / 2
 '''
 cdef int i
@@ -374,6 +374,8 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1, int mutateOption = 1
     cdef float MutateChromo = 0
     cdef float MutateChance = 0
     
+    #print "------"
+    
     for iBaby in xrange(Worlds.Pops[PopIndex].NumAgents):
         Baby[iBaby].Chromo = <float *>malloc(Worlds.Pops[PopIndex].Agents[0].NumChromo * cython.sizeof(float) )
         for iChromo in xrange(Worlds.Pops[PopIndex].Agents[0].NumChromo):
@@ -459,32 +461,49 @@ cpdef float next_gen(int PopIndex,Data,int crossOption = 1, int mutateOption = 1
            
         iBaby += 2
     
-    for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
-        Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
-        Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
-        Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
+    iAgent = 0
+    iBaby = 0
+    while iAgent < (Worlds.Pops[PopIndex].NumAgents):
+    #for iAgent in xrange(Worlds.Pops[PopIndex].NumAgents):
         #if arraysearch(iAgent,Elite,EliteNum) >= 0:
             #print("Elite exist:",arraysearch(iAgent,Elite,EliteNum))
         if arraysearch(iAgent,Elite,EliteNum) == -1:
-            for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
-                Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iAgent].Chromo[iChromo]
-                MutateChance = (float(rand()) / (RAND_MAX + 1.0))
-                if MutateChance < Worlds.Pops[PopIndex].MutateRate:
-                    if mutateOption == 0:
-                        MutateChromo = clamped_rand(randMin)
-                        Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
-                    else:
-                        MutateChromo = clamped_rand(randMin) * Worlds.Pops[PopIndex].MutateMax
-                        Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
-                    #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
+            if arraysearch(iAgent,Worst,WorstNum) == -1:
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
+                    Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = Baby[iBaby].Chromo[iChromo]
+                    MutateChance = (float(rand()) / (RAND_MAX + 1.0))
+                    if MutateChance < Worlds.Pops[PopIndex].MutateRate:
+                        if mutateOption == 0:
+                            MutateChromo = clamped_rand(randMin)
+                            Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = MutateChromo
+                        else:
+                            MutateChromo = clamped_rand(randMin) * Worlds.Pops[PopIndex].MutateMax
+                            Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] += MutateChromo
+                        #print "Agent:",iAgent,"Mutate Chromo ",iChromo," at:",MutateChromo
+                #iBaby += 1
+                
+            else:
+                #print "------"
+                #print "Worst:",iAgent
+                for iChromo in xrange(Worlds.Pops[PopIndex].Agents[iAgent].NumChromo):
+                    Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo] = clamped_rand(randMin)
+                    #print Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo]
+                
+                
             iChromo = 0
             for iLayer in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.NumLayers):
                 for iNeuron in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].NumNeurons):
                     for iWeight in xrange(Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].NumInputs):
                         Worlds.Pops[PopIndex].Agents[iAgent].Net.Layers[iLayer].Neurons[iNeuron].Weights[iWeight] = Worlds.Pops[PopIndex].Agents[iAgent].Chromo[iChromo]
                         iChromo += 1
-                        
+        
+        Worlds.Pops[PopIndex].Agents[iAgent].PosLow = 0
+        Worlds.Pops[PopIndex].Agents[iAgent].PosHi = 0
+        Worlds.Pops[PopIndex].Agents[iAgent].Score = 0
         free(Baby[iAgent].Chromo)
+        iBaby += 1
+        iAgent += 1
+        
     free(Baby)
     free(Elite)
     Worlds.Pops[PopIndex].Generation += 1
